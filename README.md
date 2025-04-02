@@ -142,4 +142,3 @@ Feel free to contribute!
 1. Fork the repository
 2. Make changes
 3. Submit a pull request
-   > > > > > > > c7f4403 (✨ Add Streamlit UI, AI agent via LangChain, sponsorship analysis, architecture diagram, and updated README with badges)
