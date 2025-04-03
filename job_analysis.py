@@ -14,6 +14,25 @@ llm = ChatOpenAI(
     model="gpt-3.5-turbo", temperature=0, api_key=os.getenv("OPENAI_API_KEY")
 )
 
+prompt = PromptTemplate(
+    input_variables=["description"],
+    template=(
+        "Carefully read the following job description. Only respond 'yes' if the company explicitly states "
+        "they offer visa sponsorship. If sponsorship is not explicitly mentioned or explicitly denied, respond 'no'.\n\n"
+        "Job Description:\n{description}\n\n"
+        "Visa Sponsorship available? (yes or no):"
+    ),
+)
+
+ats_prompt = PromptTemplate(
+    input_variables=["description"],
+    template=(
+        "Analyze the following job description and extract the top 10 keywords or phrases that an Applicant Tracking System (ATS) might prioritize.\n\n"
+        "Focus on technical skills, certifications, tools, and job-relevant terminology.\n\n"
+        "Job Description:\n{description}\n\n"
+        "Top 10 ATS Keywords:"
+    )
+)
 
 # Define the structure for the agent state
 class JobState(TypedDict):
@@ -74,15 +93,6 @@ def sponsorship_detection_node(state: JobState):
     """
     LangChain node clearly analyzing if visa sponsorship is explicitly offered or not.
     """
-    prompt = PromptTemplate(
-        input_variables=["description"],
-        template=(
-            "Carefully read the following job description. Only respond 'yes' if the company explicitly states "
-            "they offer visa sponsorship. If sponsorship is not explicitly mentioned or explicitly denied, respond 'no'.\n\n"
-            "Job Description:\n{description}\n\n"
-            "Visa Sponsorship available? (yes or no):"
-        ),
-    )
 
     message = HumanMessage(content=prompt.format(description=state["description"]))
     response = llm.invoke([message]).content.strip().lower()
@@ -97,16 +107,27 @@ def sponsorship_detection_node(state: JobState):
     return {"sponsorship_available": sponsorship_available}
 
 
-def analyze_job_for_sponsorship(job: JobListing) -> str:
+def analyze_job_for_sponsorship_and_keywords(job: JobListing) -> dict:
     """
-    Fetch and analyze job description to clearly determine sponsorship availability.
-    Returns explicitly "yes" or "no".
+    Runs both visa sponsorship detection and ATS keyword extraction on a job description.
+    Returns a dictionary with 'sponsorship_available' and 'ats_keywords'.
     """
-    description = fetch_full_job_description(job["jobUrl"])
+    description = fetch_full_job_description(job['jobUrl'])
     if not description:
-        return "no"  # Default to 'no' if description cannot be fetched clearly
+        return {"sponsorship_available": "no", "ats_keywords": []}
 
-    state: JobState = {"description": description, "sponsorship_available": ""}
-    result = sponsorship_detection_node(state)
+    # --- Run visa sponsorship check ---
+    sponsor_msg = HumanMessage(content=prompt.format(description=description))
+    sponsorship_response = llm.invoke([sponsor_msg]).content.strip().lower()
+    sponsorship_status = "yes" if "yes" in sponsorship_response else "no"
 
-    return result["sponsorship_available"]
+    # --- Run ATS keyword extraction ---
+    ats_msg = HumanMessage(content=ats_prompt.format(description=description))
+    ats_response = llm.invoke([ats_msg]).content.strip()
+    ats_keywords = [kw.strip("-• ").strip() for kw in ats_response.split("\n") if kw.strip()]
+
+    return {
+        "sponsorship_available": sponsorship_status,
+        "ats_keywords": ats_keywords
+    }
+

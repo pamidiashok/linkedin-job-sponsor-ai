@@ -1,6 +1,6 @@
 import streamlit as st
 from job_search_core import perform_search
-from job_analysis import analyze_job_for_sponsorship
+from job_analysis import analyze_job_for_sponsorship_and_keywords
 
 st.set_page_config(page_title="LinkedIn Job Sponsor AI", layout="wide")
 st.title("🔍 LinkedIn Job Sponsor AI")
@@ -93,61 +93,112 @@ if st.button("🚀 Search Jobs"):
 
             filtered_jobs = []
             total_jobs = len(jobs)
-
-            # Progress bar + status message container
             progress_bar = st.progress(0)
             status_text = st.empty()
             response_container = st.container()
             responses_so_far = []  # List of markdown-formatted strings
+            ai_results = []
 
             for index, job in enumerate(jobs):
-                status_text.text(f"🔎 Analyzing job {index + 1} of {total_jobs}...")
+                percent_complete = int((index + 1) / total_jobs * 100)
+                status_text.text(f"🔎 Analyzing job {index + 1} of {total_jobs} ({percent_complete}% complete)...")
 
-                if need_sponsorship == "Yes":
-                    try:
-                        sponsorship_status = analyze_job_for_sponsorship(job)
+                try:
+                    if need_sponsorship == "Yes":
+                        # Run AI analysis
+                        analysis = analyze_job_for_sponsorship_and_keywords(job)
+                        sponsorship_status = analysis["sponsorship_available"]
+                        keywords = analysis["ats_keywords"]
 
-                        if sponsorship_status == "yes":
-                            job["visa_sponsorship"] = "✅ Yes"
-                            filtered_jobs.append(job)
+                        # Collect AI explanation even if filtered out
+                        if sponsorship_status != "yes":
+                            ai_results.append({
+                                "index": index + 1,
+                                "jobUrl": job["jobUrl"],
+                                "sponsorship": sponsorship_status,
+                                "ats_keywords": keywords
+                            })
+                            continue  # Skip adding to filtered_jobs
 
-                        # Append result for just this job
+                        # Add to final filtered list
+                        job["visa_sponsorship"] = "✅ Yes"
+                        job["ats_keywords"] = keywords
+                        filtered_jobs.append(job)
+
+                        # Show analysis result
                         with response_container:
-                            color = "green" if sponsorship_status == "yes" else "red"
+                            color = "green"
                             st.markdown(
-                                f"AI Response for Job {index + 1}: "
+                                f'AI Response for Job {index + 1}: '
                                 f'<span style="color:{color}; font-weight:bold;">{sponsorship_status.upper()}</span><br>'
-                                f'<a href="{job["jobUrl"]}" target="_blank">🔗 LinkedIn Link</a><hr>',
-                                unsafe_allow_html=True,
+                                f'<a href="{job["jobUrl"]}" target="_blank">🔗 LinkedIn Link</a><br>',
+                                unsafe_allow_html=True
                             )
+                            if keywords:
+                                st.markdown(f"**Top ATS Keywords:** `{', '.join(keywords)}`")
+                            st.markdown("---")
 
-                    except Exception as e:
-                        st.error(f"Error during analysis: {e}")
-                        break
-                else:
-                    job["visa_sponsorship"] = "Not required"
-                    filtered_jobs.append(job)
+                    else:  # Sponsorship not required
+                        job["visa_sponsorship"] = "Not required"
+                        filtered_jobs.append(job)
 
-                progress_bar.progress((index + 1) / total_jobs)
+                    progress_bar.progress((index + 1) / total_jobs)
 
-            # Final status
+                except Exception as e:
+                    st.error(f"Error during analysis: {e}")
+                    break
+
             progress_bar.empty()
             status_text.text("✅ Finished analyzing jobs.")
 
-        # --- Display Results ---
-        if filtered_jobs:
-            st.success(f"Found {len(filtered_jobs)} job(s):")
-            for job in filtered_jobs:
-                with st.expander(f"{job['position']} @ {job['company']}"):
-                    st.markdown(f"**Location:** {job['location']}")
-                    st.markdown(f"**Posted:** {job['agoTime']}")
-                    st.markdown(f"**Salary:** {job['salary']}")
-                    st.markdown(f"[🌐 View Job on LinkedIn]({job['jobUrl']})")
-                    if need_sponsorship == "Yes":
-                        st.markdown(
-                            f"**Visa Sponsorship Available?** {job['visa_sponsorship']}"
-                        )
-        else:
-            st.warning(
-                "No jobs found matching your criteria or sponsorship requirement."
-            )
+
+            if filtered_jobs:
+                st.success(f"Found {len(filtered_jobs)} job(s):")
+
+                for index, job in enumerate(filtered_jobs):
+                    job_title = job.get("position", f"Job {index + 1}")
+                    # Use a container with a stable, unique key (based on index and job URL)
+                    expander_container = st.container(key=f"container_{index}_{job['jobUrl']}")
+                    with expander_container:
+                        with st.expander(f"{index + 1}. {job_title} @ {job['company']}"):
+                            st.markdown(f"**Location:** {job['location']}")
+                            st.markdown(f"**Posted:** {job['agoTime']}")
+                            st.markdown(f"**Visa Sponsorship Available?** {job['visa_sponsorship']}")
+                            st.markdown(f"[🔗 View Job on LinkedIn]({job['jobUrl']})")
+
+                            # 1) Show a short preview of the job description
+                            #    (You can define "description_preview" when fetching or parsing the job)
+                            preview = job.get("description_preview", "No preview available.")
+                            st.markdown("**Job Preview:**")
+                            st.markdown(preview)
+
+                            # 2) A button to reveal the full job description
+                            #    (Define "full_description" in your job data to store the entire text)
+                            if st.button("Show Full Job Details", key=f"show_details_{index}"):
+                                full_desc = job.get("full_description", "Full description not available.")
+                                st.markdown("**Full Job Description:**")
+                                st.markdown(full_desc)
+
+                            # 3) Always show ATS Keywords if available
+                            if job.get("ats_keywords"):
+                                st.markdown("**Top ATS Keywords:**")
+                                st.write("• " + "\n• ".join(job["ats_keywords"]))
+
+            else:
+                st.warning("No jobs found matching your criteria or sponsorship requirement.")
+
+                if need_sponsorship == "Yes" and ai_results:
+                    with st.expander("🧠 See AI Analysis for Skipped Jobs"):
+                        for res in ai_results:
+                            color = "green" if res["sponsorship"] == "yes" else "red"
+                            st.markdown(
+                                f'AI Response for Job {res["index"]}: '
+                                f'<span style="color:{color}; font-weight:bold;">{res["sponsorship"].upper()}</span><br>'
+                                f'<a href="{res["jobUrl"]}" target="_blank">🔗 LinkedIn Link</a>',
+                                unsafe_allow_html=True
+                            )
+                            if res["ats_keywords"]:
+                                st.markdown("**Top ATS Keywords:**")
+                                st.write("• " + "\n• ".join(res["ats_keywords"]))
+                            st.markdown("---")
+
