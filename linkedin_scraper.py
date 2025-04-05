@@ -10,13 +10,13 @@ class LinkedInJobScraper:
 
     # Base URL for LinkedIn Jobs search (guest access)
     BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
-    BATCH_SIZE = 25  # LinkedIn returns 25 jobs per page by default&#8203;:contentReference[oaicite:4]{index=4}
+    BATCH_SIZE = 25  # LinkedIn returns 25 jobs per page by default
 
     # Define mapping for filter values to LinkedIn query parameters
     DATE_FILTERS = {
-        "past month": "r2592000",  # posted in last 30 days&#8203;:contentReference[oaicite:5]{index=5}
-        "past week": "r604800",  # posted in last 7 days&#8203;:contentReference[oaicite:6]{index=6}
-        "24hr": "r86400",  # posted in last 24 hours&#8203;:contentReference[oaicite:7]{index=7}
+        "past month": "r2592000",  # posted in last 30 days
+        "past week": "r604800",  # posted in last 7 days
+        "24hr": "r86400",  # posted in last 24 hours
     }
     EXPERIENCE_FILTERS = {
         "internship": "1",
@@ -222,8 +222,8 @@ class LinkedInJobScraper:
                 "User-Agent": random.choice(self.USER_AGENTS),
                 "Accept": "application/json, text/javascript, */*; q=0.01",
                 "Accept-Language": "en-US,en;q=0.9",
-                "Referer": "https://www.linkedin.com/jobs",  # Referer set to jobs page&#8203;:contentReference[oaicite:8]{index=8}
-                "X-Requested-With": "XMLHttpRequest",  # Indicate AJAX request&#8203;:contentReference[oaicite:9]{index=9}
+                "Referer": "https://www.linkedin.com/jobs",  # Referer set to jobs page
+                "X-Requested-With": "XMLHttpRequest",  # Indicate AJAX request
             }
             try:
                 resp = requests.get(url, headers=headers, timeout=10)

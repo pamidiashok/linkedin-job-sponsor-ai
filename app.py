@@ -114,18 +114,8 @@ if st.button("🚀 Search Jobs"):
                         job["ats_keywords"] = keywords
                         filtered_jobs.append(job)
 
-                        # Show analysis result for this job
-                        with response_container:
-                            st.markdown(
-                                f'AI Response for Job {index + 1}: '
-                                f'<span style="color:green; font-weight:bold;">{sponsorship_status.upper()}</span><br>'
-                                f'<a href="{job["jobUrl"]}" target="_blank">🔗 LinkedIn Link</a><br>',
-                                unsafe_allow_html=True
-                            )
-                            if keywords:
-                                st.markdown(f"**Top ATS Keywords:** `{', '.join(keywords)}`")
-                            st.markdown("---")
-                    else:  # Sponsorship not required
+                    else:
+                        # When sponsorship is not required, skip AI analysis
                         job["visa_sponsorship"] = "Not required"
                         filtered_jobs.append(job)
 
@@ -159,10 +149,17 @@ if st.session_state["filtered_jobs"]:
                 preview = job.get("description_preview", "No preview available.")
                 st.markdown("**Job Preview:**")
                 st.markdown(preview)
-                if st.button("Show Full Job Details", key=f"show_full_{index}"):
+                
+                # Use a session state flag to control full description display
+                flag_key = f"show_full_flag_{index}"
+                if st.button("Show Full Job Details", key=f"show_full_btn_{index}"):
+                    st.session_state[flag_key] = True
+
+                if st.session_state.get(flag_key, False):
                     full_description = job.get("full_description", "Full description not available.")
                     st.markdown("**Full Job Description:**")
                     st.markdown(full_description)
+
 else:
     st.warning("No jobs found matching your criteria or sponsorship requirement.")
     if need_sponsorship == "Yes" and st.session_state.get("ai_results"):
